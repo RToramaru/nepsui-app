@@ -29,7 +29,7 @@
 
 <body>
     <div class="container mt-5">
-        <h2 class="text-center mb-4">Calculadora de Pesos - Porca e Leitões</h2>
+        <h2 class="text-center mb-4">NEPSUI</h2>
         <form id="calcForm">
             <div class="form-group">
                 <label for="fileInput">Arquivo Excel</label>
@@ -66,27 +66,22 @@
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             let excelData = null;
-    
+
             const dropArea = document.getElementById('drop-area');
             const fileInput = document.getElementById('fileInput');
             const fileNamePlaceholder = document.getElementById('file-name-placeholder');
             const dateInput = document.getElementById('dateInput');
-            
-            // Função para quando o arquivo for selecionado
+
             dropArea.addEventListener('click', function () {
                 fileInput.click();
             });
-    
+
             fileInput.addEventListener('change', function (e) {
                 const file = e.target.files[0];
                 if (file && file.name.endsWith('.xlsx')) {
-                    // Atualiza o texto no placeholder com o nome do arquivo selecionado
                     fileNamePlaceholder.textContent = `Arquivo selecionado: ${file.name}`;
-    
-                    // Habilita o calendário de data do parto
                     dateInput.disabled = false;
-    
-                    // Lê o arquivo Excel
+
                     const reader = new FileReader();
                     reader.onload = function (event) {
                         const data = new Uint8Array(event.target.result);
@@ -99,86 +94,210 @@
                     alert('Por favor, selecione um arquivo .xlsx');
                 }
             });
-    
-            // Envio do formulário
+
             document.getElementById('calcForm').addEventListener('submit', function (event) {
                 event.preventDefault();
-    
-                // Obter valores dos campos
+
                 const dataParto = document.getElementById('dateInput').value;
                 const numLeitoes = document.getElementById('leitõesInput').value;
-    
+
                 if (!excelData || !dataParto || !numLeitoes) {
                     alert('Por favor, preencha todos os campos.');
                     return;
                 }
-    
-                // Criar um FormData para enviar o arquivo e os dados
+
                 const formData = new FormData();
                 formData.append('fileInput', fileInput.files[0]);
                 formData.append('dataParto', dataParto);
                 formData.append('numLeitoes', numLeitoes);
-    
-                // Enviar a requisição para o servidor
+
                 fetch('/processar', {
                     method: 'POST',
                     body: formData
                 })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        showResults(data.pesosAjustados);
-                    } else {
-                        alert('Erro ao processar os dados.');
-                    }
-                })
-                .catch(error => {
-                    console.error('Erro:', error);
-                    alert('Ocorreu um erro ao enviar os dados.');
-                });
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log('Estrutura dos Dados:', data);
+                        if (data.status === 'success') {
+                            showScatterChart(data.dadosLimpos, data.pesosAjustados);
+                        } else {
+                            alert('Erro ao processar os dados.');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Erro:', error);
+                        alert('Ocorreu um erro ao enviar os dados.');
+                    });
             });
-    
-            // Função para exibir os gráficos
-            function showResults(results) {
+
+            function convertToDate(dateString) {
+                // Se já tiver HH:mm:ss, usa diretamente
+                if (dateString.includes(' ')) {
+                    const [datePart, timePart] = dateString.split(' '); // Separa a data e o horário
+                    const [day, month, year] = datePart.split('/'); // Separa o dia, mês e ano
+                    return new Date(`${year}-${month}-${day}T${timePart}`); // Cria um objeto Date no formato ISO (YYYY-MM-DDTHH:mm:ss)
+                }
+
+                // Caso contrário, adiciona um horário padrão (ex.: 12:00:00)
+                const [day, month, year] = dateString.split('/');
+                return new Date(`${year}-${month}-${day}T12:00:00`);
+            }
+
+
+            // Função para exibir o gráfico de dispersão com os dados brutos
+            function showScatterChart(dadosLimpos, pesosAjustados) {
                 document.querySelector('.result-section').style.display = 'block';
-    
-                // Dados para o gráfico
+
+                const scatterData = dadosLimpos.flatMap(item => {
+                    return item.Dados.map(dado => ({
+                        x: convertToDate(dado.Data_Horário), // Converte para objeto Date
+                        y: dado.Peso
+                    }));
+                });
+
+                // Dados Ajustados
+                const lineDataPorcas = pesosAjustados.datas.map((data, index) => ({
+                    x: convertToDate(data), // Converte para objeto Date
+                    y: pesosAjustados.pesosAjustadosPorcas[index]
+                }));
+
+                const lineDataPorcasELeitoes = pesosAjustados.datas.map((data, index) => ({
+                    x: convertToDate(data), // Converte para objeto Date
+                    y: pesosAjustados.pesosAjustadosPorcasELeitoes[index]
+                }));
+
+                const lineDataLeitoes = pesosAjustados.datas.map((data, index) => ({
+                    x: convertToDate(data), // Converte para objeto Date
+                    y: pesosAjustados.pesosAjustadosLeitoes[index]
+                }));
+
+                // Configuração do gráfico
                 const chartData = {
-                    labels: results.datas,
                     datasets: [
                         {
-                            label: 'Pesos Ajustados - Porcas',
-                            data: results.pesosAjustadosPorcas,
-                            borderColor: 'rgba(75, 192, 192, 1)',
-                            fill: false
+                            label: 'Dados Brutos (Peso x Data)',
+                            data: scatterData,
+                            backgroundColor: 'rgba(0, 123, 255, 0.8)',
+                            borderColor: 'rgba(0, 123, 255, 0.8)',
+                            pointRadius: 5,
+                            type: 'scatter'
                         },
                         {
-                            label: 'Pesos Ajustados - Leitões',
-                            data: results.pesosAjustadosLeitoes,
-                            borderColor: 'rgba(153, 102, 255, 1)',
-                            fill: false
-                        },
-                        {
-                            label: 'Pesos Brutos (Total)',
-                            data: results.pesosAjustadosPorcasELeitoes,
+                            label: 'Peso Ajustado da Porca',
+                            data: lineDataPorcas,
                             borderColor: 'rgba(255, 99, 132, 1)',
-                            fill: false
+                            backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                            type: 'line',
+                            pointRadius: 3,
+                            tension: 0.3,
+                            fill: true
+                        },
+                        {
+                            label: 'Peso Ajustado (Porca + Leitões)',
+                            data: lineDataPorcasELeitoes,
+                            borderColor: 'rgba(75, 192, 192, 1)',
+                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                            type: 'line',
+                            pointRadius: 3,
+                            tension: 0.3,
+                            fill: true
+                        },
+                        {
+                            label: 'Peso Ajustado dos Leitões',
+                            data: lineDataLeitoes,
+                            borderColor: 'rgba(153, 102, 255, 1)',
+                            backgroundColor: 'rgba(153, 102, 255, 0.2)',
+                            type: 'line',
+                            pointRadius: 3,
+                            tension: 0.3,
+                            fill: true
                         }
                     ]
                 };
-    
-                // Criar o gráfico
+
+                // Renderizar o gráfico
                 const ctx = document.getElementById('resultChart').getContext('2d');
-                new Chart(ctx, {
-                    type: 'line',
-                    data: chartData
+                const chart = new Chart(ctx, {
+                    type: 'scatter',
+                    data: {
+                        datasets: [
+                            {
+                                label: 'Dados Brutos (Peso x Data)',
+                                data: scatterData,
+                                backgroundColor: 'rgba(0, 123, 255, 0.8)',
+                                borderColor: 'rgba(0, 123, 255, 0.8)',
+                                pointRadius: 5,
+                                type: 'scatter'
+                            },
+                            {
+                                label: 'Peso Ajustado da Porca',
+                                data: lineDataPorcas,
+                                borderColor: 'rgba(255, 99, 132, 1)',
+                                backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                                type: 'line',
+                                pointRadius: 3,
+                                tension: 0.3,
+                                fill: true
+                            },
+                            {
+                                label: 'Peso Ajustado (Porca + Leitões)',
+                                data: lineDataPorcasELeitoes,
+                                borderColor: 'rgba(75, 192, 192, 1)',
+                                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                                type: 'line',
+                                pointRadius: 3,
+                                tension: 0.3,
+                                fill: true
+                            },
+                            {
+                                label: 'Peso Ajustado dos Leitões',
+                                data: lineDataLeitoes,
+                                borderColor: 'rgba(153, 102, 255, 1)',
+                                backgroundColor: 'rgba(153, 102, 255, 0.2)',
+                                type: 'line',
+                                pointRadius: 3,
+                                tension: 0.3,
+                                fill: true
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            x: {
+                                type: 'time', // Define como eixo de tempo
+                                time: {
+                                    tooltipFormat: 'dd/MM/yyyy HH:mm', // Formato para o tooltip
+                                    displayFormats: {
+                                        day: 'dd/MM/yyyy' // Formato para o eixo
+                                    }
+                                },
+                                title: {
+                                    display: true,
+                                    text: 'Data'
+                                }
+                            },
+                            y: {
+                                title: {
+                                    display: true,
+                                    text: 'Peso'
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                position: 'top'
+                            }
+                        }
+                    }
                 });
-    
-                // Mostrar o botão de download da planilha
-                document.getElementById('downloadBtn').style.display = 'block';
+
             }
+
+
         });
     </script>
+
 </body>
 
 </html>
