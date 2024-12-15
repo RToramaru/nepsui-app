@@ -6,6 +6,7 @@ import { bin } from 'd3-array';
 import xlsx from 'xlsx';
 import { density1d, } from 'fast-kde';
 import { SimpleLinearRegression } from 'ml-regression-simple-linear';
+import fs from 'fs';
 
 
 
@@ -27,13 +28,26 @@ app.post('/processar', upload.single('fileInput'), (req, res) => {
     const filePath = req.file.path;
     const { dataParto, numLeitoes } = req.body;
 
-    const result = processExcelFile(filePath, dataParto, numLeitoes + 1);
+    try {
+        const result = processExcelFile(filePath, dataParto, numLeitoes + 1);
 
-    res.json({
-        status: 'success',
-        dadosLimpos: result.dadosLimpos,
-        pesosAjustados: result.pesosAjustados
-    });
+        res.json({
+            status: 'success',
+            dadosLimpos: result.dadosLimpos,
+            pesosAjustados: result.pesosAjustados,
+        });
+    } catch (error) {
+        console.error('Erro durante o processamento:', error);
+        res.status(500).json({ status: 'error', message: 'Erro ao processar o arquivo.' });
+    } finally {
+        fs.unlink(filePath, (err) => {
+            if (err) {
+                console.error(`Erro ao deletar o arquivo ${filePath}:`, err);
+            } else {
+                console.log(`Arquivo ${filePath} deletado com sucesso.`);
+            }
+        });
+    }
 });
 
 
