@@ -88,8 +88,14 @@ function processExcelFile(filePath, dataParto, numLeitoes) {
     const pesosAjustados = calcularPesosSegmentados(cleanData, dataParto, numLeitoes);
 
     // Retorna tanto os dados limpos quanto os pesos ajustados
+    const dadosBrutos = Object.keys(groupedData).map(date => {
+        return {
+            Data: date,
+            Dados: groupedData[date],
+        };
+    });
     return {
-        dadosLimpos: cleanData,
+        dadosLimpos: dadosBrutos,
         pesosAjustados
     };
 }
